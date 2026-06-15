@@ -13,13 +13,12 @@ public class Movie
     public ICollection<Review> Reviews { get; private set; } = new List<Review>();
     public ICollection<Actor> Actors { get; private set; } = new List<Actor>();
 
-
     public Movie()
     {
 
     }
 
-    public Movie (string title, int year, int duration, Genre? genre)
+    public Movie(string title, int year, int duration, Genre? genre)
     {
         Title = title;
         Year = year;

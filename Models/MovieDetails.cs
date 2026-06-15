@@ -9,7 +9,6 @@ public class MovieDetails
     public Guid MovieId { get; private set; }
     public Movie? Movie { get; private set; }
 
-
     public MovieDetails()
     {
 

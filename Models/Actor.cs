@@ -10,7 +10,7 @@ public class Actor
 
     public Actor()
     {
-        
+
     }
 
     public Actor(string name, int birthYear)
