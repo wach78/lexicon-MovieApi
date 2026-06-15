@@ -25,4 +25,12 @@ public class Movie
         Duration = duration;
         Genre = genre;
     }
+
+    public void Update(string title, int year, int duration, Genre? genre)
+    {
+        Title = title;
+        Year = year;
+        Duration = duration;
+        Genre = genre;
+    }
 }

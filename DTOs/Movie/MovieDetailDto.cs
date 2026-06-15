@@ -1,6 +1,6 @@
-using MovieApi.Models;
 using MovieApi.DTOs.Actor;
 using MovieApi.DTOs.Review;
+using MovieApi.Models;
 
 namespace MovieApi.DTOs.Movie;
 
@@ -21,4 +21,7 @@ public class MovieDetailDto
     public List<ReviewDto> Reviews { get; init; } = new();
 
     public List<ActorDto> Actors { get; init; } = new();
+
+    public MovieDetailsDto? MovieDetails { get; init; }
+
 }
