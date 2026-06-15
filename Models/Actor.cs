@@ -18,4 +18,10 @@ public class Actor
         Name = name;
         BirthYear = birthYear;
     }
+
+    public void Update(string name, int birthYear)
+    {
+        Name = name;
+        BirthYear = birthYear;
+    }
 }
