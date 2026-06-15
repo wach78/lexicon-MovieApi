@@ -25,7 +25,6 @@ namespace MovieApi
 
             app.UseAuthorization();
 
-
             app.MapControllers();
 
             app.Run();
