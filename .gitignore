@@ -1,0 +1,94 @@
+# Visual Studio
+.vs/
+*.user
+*.suo
+*.userosscache
+*.sln.docstates
+*.rsuser
+
+# Build output
+bin/
+obj/
+[Bb]in/
+[Oo]bj/
+[Dd]ebug/
+[Rr]elease/
+x64/
+x86/
+[Aa][Rr][Mm]/
+[Aa][Rr][Mm]64/
+
+# .NET test results / coverage
+TestResults/
+*.trx
+*.coverage
+*.coveragexml
+coverage/
+coveragereport/
+*.lcov
+coverage.cobertura.xml
+
+# NuGet
+*.nupkg
+*.snupkg
+.nuget/packages/
+packages/
+project.lock.json
+project.assets.json
+
+# ASP.NET / local environment secrets
+.env
+.env.*
+*.env
+appsettings.Local.json
+appsettings.*.Local.json
+appsettings.Development.Local.json
+
+# SQL Server / database files
+*.mdf
+*.ldf
+*.ndf
+*.bak
+*.trn
+*.bacpac
+
+# Logs
+*.log
+logs/
+Logs/
+
+# Rider / JetBrains
+.idea/
+*.sln.iml
+
+# VS Code
+.vscode/*
+!.vscode/settings.json
+!.vscode/extensions.json
+
+# OS files
+.DS_Store
+Thumbs.db
+ehthumbs.db
+Desktop.ini
+
+# Temporary files
+*.tmp
+*.temp
+*.swp
+*.swo
+~$*
+
+# Test results and coverage
+TestResults/
+CoverageReport/
+coverage/
+coverage.cobertura.xml
+*.coverage
+*.coveragexml
+
+# ReportGenerator output
+**/CoverageReport/
+**/coverage.cobertura.xml
+
+*.cmd
