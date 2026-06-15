@@ -28,8 +28,8 @@ public static class SeedDataExtensions
         Actor timRobbins = new("Tim Robbins", 1958);
 
         Movie matrix = new("The Matrix", 1999, 136, scienceFiction);
-        Movie forrestGump = new("Forrest Gump", 1994, 142,drama);
-        Movie shawshank = new("The Shawshank Redemption", 1994, 142,drama);
+        Movie forrestGump = new("Forrest Gump", 1994, 142, drama);
+        Movie shawshank = new("The Shawshank Redemption", 1994, 142, drama);
 
         MovieDetails matrixDetails = new(
             "A hacker discovers that reality is a simulated world controlled by machines.",
