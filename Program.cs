@@ -1,6 +1,7 @@
 using Microsoft.EntityFrameworkCore;
-
+using MovieApi.Extensions;
 namespace MovieApi
+
 {
     public class Program
     {
@@ -18,6 +19,8 @@ namespace MovieApi
             builder.Services.AddOpenApi();
 
             var app = builder.Build();
+
+            app.SeedData();
 
             // Configure the HTTP request pipeline.
             if (app.Environment.IsDevelopment())
