@@ -18,7 +18,7 @@ public class ActorsController : ControllerBase
     }
 
     // POST: api/movies/{movieId}/actors/{actorId}
-    [HttpPost("{movieId:guid}/actors/{actorId:guid}")]
+    [HttpPost("/api/movies/{movieId:guid}/actors/{actorId:guid}")]
     public async Task<IActionResult> AddActorToMovie(
         [FromRoute] Guid movieId,
         [FromRoute] Guid actorId)

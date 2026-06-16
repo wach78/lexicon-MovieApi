@@ -25,6 +25,7 @@ public class ReviewsController : ControllerBase
             .AsNoTracking()
             .Select(review => new ReviewDto
             {
+                Id = review.Id,
                 ReviewerName = review.ReviewerName,
                 Comment = review.Comment,
                 Rating = review.Rating
@@ -38,11 +39,21 @@ public class ReviewsController : ControllerBase
     [HttpGet("/api/movies/{movieId:guid}/reviews")]
     public async Task<ActionResult<IEnumerable<ReviewDto>>> GetMovieReviws([FromRoute] Guid movieId)
     {
+        Movie? movie = await _context.Movie
+        .AsNoTracking()
+        .FirstOrDefaultAsync(movie => movie.Id == movieId);
+
+        if (movie == null)
+        {
+            return NotFound();
+        }
+
         List<ReviewDto> reviews = await _context.reviews
             .AsNoTracking()
             .Where(review => review.MovieId == movieId)
             .Select(review => new ReviewDto
             {
+                Id = review.Id,
                 ReviewerName = review.ReviewerName,
                 Comment = review.Comment,
                 Rating = review.Rating
