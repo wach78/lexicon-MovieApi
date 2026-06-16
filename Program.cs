@@ -1,5 +1,6 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApi.Extensions;
+using Scalar.AspNetCore;
 namespace MovieApi
 
 {
@@ -26,6 +27,7 @@ namespace MovieApi
             if (app.Environment.IsDevelopment())
             {
                 app.MapOpenApi();
+                app.MapScalarApiReference();
             }
 
             app.UseHttpsRedirection();
