@@ -1,5 +1,6 @@
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
+using Microsoft.IdentityModel.Tokens;
 using MovieApi.DTOs.Actor;
 using MovieApi.DTOs.Movie;
 using MovieApi.DTOs.Review;
@@ -17,20 +18,75 @@ public class MoviesController : ControllerBase
 
     // GET: api/Movie
     [HttpGet]
-    public async Task<ActionResult<IEnumerable<MovieDto>>> GetMovie()
+    public async Task<ActionResult<IEnumerable<MovieDto>>> GetMovie(
+        [FromQuery] string? genre,
+        [FromQuery] int? year,
+        [FromQuery] string? actor,
+        [FromQuery] bool? withActors = false
+        )
     {
-        List<MovieDto> movies = await _context.Movie
-            .AsNoTracking()
-            .Select(movie => new MovieDto
-            {
-                Id = movie.Id,
-                Title = movie.Title,
-                Year = movie.Year,
-                Duration = movie.Duration,
-                GenreId = movie.GenreId,
-                GenreName = movie.Genre != null ? movie.Genre.Name : null
-            })
-            .ToListAsync();
+        IQueryable<Movie> query = _context.Movie
+        .AsNoTracking();
+
+        if (!string.IsNullOrWhiteSpace(genre))
+        {
+            string trimmedGenre = genre.Trim();
+
+            query = query.Where(movie =>
+                movie.Genre != null &&
+                movie.Genre.Name == trimmedGenre);
+        }
+
+        if (year.HasValue)
+        {
+            query = query.Where(movie => movie.Year == year.Value);
+        }
+
+        if (!string.IsNullOrWhiteSpace(actor))
+        {
+            string trimmedActor = actor.Trim();
+
+            query = query.Where(movie =>
+                  movie.Actors.Any(actor => actor.Name == trimmedActor)
+                );
+        }
+
+        if (withActors == true)
+        {
+            List<MovieWithActorsDto> moviesWithActors = await query
+                .Select(movie => new MovieWithActorsDto
+                {
+                    Id = movie.Id,
+                    Title = movie.Title,
+                    Year = movie.Year,
+                    Duration = movie.Duration,
+                    GenreId = movie.GenreId,
+                    GenreName = movie.Genre != null ? movie.Genre.Name : null,
+                    Actors = movie.Actors
+                        .Select(actor => new ActorDto
+                        {
+                            Id = actor.Id,
+                            Name = actor.Name,
+                            BirthYear = actor.BirthYear
+                        })
+                        .ToList()
+                })
+                .ToListAsync();
+
+            return Ok(moviesWithActors);
+        }
+
+        List<MovieDto> movies = await query
+        .Select(movie => new MovieDto
+        {
+            Id = movie.Id,
+            Title = movie.Title,
+            Year = movie.Year,
+            Duration = movie.Duration,
+            GenreId = movie.GenreId,
+            GenreName = movie.Genre != null ? movie.Genre.Name : null
+        })
+        .ToListAsync();
 
         return Ok(movies);
     }

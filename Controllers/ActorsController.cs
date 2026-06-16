@@ -133,7 +133,6 @@ public class ActorsController : ControllerBase
             return NotFound();
         }
 
-       
         actor.Update(
             actorUpdateDto.Name,
             actorUpdateDto.BirthYear
