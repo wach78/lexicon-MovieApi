@@ -3,7 +3,6 @@ using MovieApi.Data.Seed;
 using Scalar.AspNetCore;
 namespace MovieApi;
 
-
 public class Program
 {
     public static void Main(string[] args)
