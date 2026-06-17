@@ -4,16 +4,19 @@ using Microsoft.IdentityModel.Tokens;
 using MovieApi.DTOs.Actor;
 using MovieApi.DTOs.Movie;
 using MovieApi.DTOs.Review;
+using MovieApi.Emuns;
+using MovieApi.Emuns;
+using MovieApi.Interfaces.Service;
 using MovieApi.Models;
 
 [Route("api/[controller]")]
 [ApiController]
 public class MoviesController : ControllerBase
 {
-    private readonly MovieApiContext _context;
-    public MoviesController(MovieApiContext context)
+    private readonly IMovieService _movieService;
+    public MoviesController(IMovieService movieService)
     {
-        _context = context;
+        _movieService = movieService;
     }
 
     // GET: api/Movie
@@ -22,71 +25,14 @@ public class MoviesController : ControllerBase
         [FromQuery] string? genre,
         [FromQuery] int? year,
         [FromQuery] string? actor,
-        [FromQuery] bool? withActors = false
+        CancellationToken cancellationToken
         )
     {
-        IQueryable<Movie> query = _context.Movie
-        .AsNoTracking();
-
-        if (!string.IsNullOrWhiteSpace(genre))
-        {
-            string trimmedGenre = genre.Trim();
-
-            query = query.Where(movie =>
-                movie.Genre != null &&
-                movie.Genre.Name == trimmedGenre);
-        }
-
-        if (year.HasValue)
-        {
-            query = query.Where(movie => movie.Year == year.Value);
-        }
-
-        if (!string.IsNullOrWhiteSpace(actor))
-        {
-            string trimmedActor = actor.Trim();
-
-            query = query.Where(movie =>
-                  movie.Actors.Any(actor => actor.Name == trimmedActor)
-                );
-        }
-
-        if (withActors == true)
-        {
-            List<MovieWithActorsDto> moviesWithActors = await query
-                .Select(movie => new MovieWithActorsDto
-                {
-                    Id = movie.Id,
-                    Title = movie.Title,
-                    Year = movie.Year,
-                    Duration = movie.Duration,
-                    GenreId = movie.GenreId,
-                    GenreName = movie.Genre != null ? movie.Genre.Name : null,
-                    Actors = movie.Actors
-                        .Select(actor => new ActorDto
-                        {
-                            Id = actor.Id,
-                            Name = actor.Name,
-                            BirthYear = actor.BirthYear
-                        })
-                        .ToList()
-                })
-                .ToListAsync();
-
-            return Ok(moviesWithActors);
-        }
-
-        List<MovieDto> movies = await query
-        .Select(movie => new MovieDto
-        {
-            Id = movie.Id,
-            Title = movie.Title,
-            Year = movie.Year,
-            Duration = movie.Duration,
-            GenreId = movie.GenreId,
-            GenreName = movie.Genre != null ? movie.Genre.Name : null
-        })
-        .ToListAsync();
+        IReadOnlyList<MovieDto> movies = await _movieService.GetMoviesAsync(
+        genre,
+        year,
+        actor,
+        cancellationToken);
 
         return Ok(movies);
     }
@@ -95,21 +41,9 @@ public class MoviesController : ControllerBase
     [HttpGet("{id:guid}")]
     public async Task<ActionResult<MovieDto>> GetMovie([FromRoute] Guid id)
     {
-        MovieDto? movie = await _context.Movie
-            .AsNoTracking()
-            .Where(movie => movie.Id == id)
-            .Select(movie => new MovieDto
-            {
-                Id = movie.Id,
-                Title = movie.Title,
-                Year = movie.Year,
-                Duration = movie.Duration,
-                GenreId = movie.GenreId,
-                GenreName = movie.Genre != null ? movie.Genre.Name : null
-            })
-            .FirstOrDefaultAsync();
+        MovieDto? movie = await _movieService.GetMovieByIdAsync(id);
 
-        if (movie == null)
+        if (movie is null)
         {
             return NotFound();
         }
@@ -118,51 +52,11 @@ public class MoviesController : ControllerBase
     }
 
     [HttpGet("{id:guid}/details")]
-    public async Task<ActionResult<MovieDetailDto>> GetMovieDetails([FromRoute] Guid id)
+    public async Task<ActionResult<MovieDetailDto>> GetMovieDetails([FromRoute] Guid id, CancellationToken cancellationToken)
     {
-        MovieDetailDto? movie = await _context.Movie
-            .AsNoTracking()
-            .Where(movie => movie.Id == id)
-            .Select(movie => new MovieDetailDto
-            {
-                Id = movie.Id,
-                Title = movie.Title,
-                Year = movie.Year,
-                Duration = movie.Duration,
-                GenreId = movie.GenreId,
-                GenreName = movie.Genre != null ? movie.Genre.Name : null,
+        MovieDetailDto? movie = await _movieService.GetMovieDetailsAsync(id, cancellationToken);
 
-                MovieDetails = movie.MovieDetails == null
-                    ? null
-                    : new MovieDetailsDto
-                    {
-                        Id = movie.MovieDetails.Id,
-                        Synopsis = movie.MovieDetails.Synopsis,
-                        Language = movie.MovieDetails.Language,
-                        Budget = movie.MovieDetails.Budget
-                    },
-
-                Reviews = movie.Reviews
-                    .Select(review => new ReviewDto
-                    {
-                        Id = review.Id,
-                        ReviewerName = review.ReviewerName,
-                        Comment = review.Comment,
-                        Rating = review.Rating
-                    })
-                    .ToList(),
-
-                Actors = movie.Actors
-                    .Select(actor => new ActorDto
-                    {
-                        Name = actor.Name,
-                        BirthYear = actor.BirthYear
-                    })
-                    .ToList()
-            })
-            .FirstOrDefaultAsync();
-
-        if (movie == null)
+        if (movie is null)
         {
             return NotFound();
         }
@@ -173,104 +67,64 @@ public class MoviesController : ControllerBase
     // PUT: api/Movie/5
     // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
     [HttpPut("{id:guid}")]
-    public async Task<IActionResult> PutMovie([FromRoute] Guid id, [FromBody] MovieUpdateDto movieUpdateDto)
+    public async Task<IActionResult> PutMovie([FromRoute] Guid id, [FromBody] MovieUpdateDto movieUpdateDto, CancellationToken cancellationToken)
     {
         if (id != movieUpdateDto.Id)
         {
-            return BadRequest();
+            return BadRequest("Route id does not match body id.");
         }
 
-        Movie? movie = await _context.Movie.FirstOrDefaultAsync(movie => movie.Id == id);
+        UpdateMovieResult updateMovieResult = await _movieService.UpdateMovieAsync(id, movieUpdateDto, cancellationToken);
 
-        if (movie == null)
+        return updateMovieResult switch
         {
-            return NotFound();
-        }
+            UpdateMovieResult.MovieNotFound =>
+                NotFound("Movie not found."),
 
-        Genre? genre = null;
+            UpdateMovieResult.GenreNotFound =>
+                BadRequest("Genre does not exist."),
 
-        if (movieUpdateDto.GenreId.HasValue)
-        {
-            genre = await _context.Set<Genre>()
-                .FindAsync(movieUpdateDto.GenreId.Value);
+            UpdateMovieResult.Updated =>
+                NoContent(),
 
-            if (genre == null)
-            {
-                return BadRequest("Genre does not exist.");
-            }
-        }
-
-        movie.Update(
-            movieUpdateDto.Title,
-            movieUpdateDto.Year,
-            movieUpdateDto.Duration,
-            genre
-        );
-
-        await _context.SaveChangesAsync();
-
-        return NoContent();
+            _ => StatusCode(StatusCodes.Status500InternalServerError)
+        };
     }
 
     // POST: api/Movie
     // To protect from overposting attacks, see https://go.microsoft.com/fwlink/?linkid=2123754
     [HttpPost]
-    public async Task<ActionResult<MovieDto>> PostMovie([FromBody] MovieCreateDto movieCreateDto)
+    public async Task<ActionResult<MovieDto>> PostMovie([FromBody] MovieCreateDto movieCreateDto, CancellationToken cancellationToken)
     {
-        Genre? genre = null;
-
-        if (movieCreateDto.GenreId.HasValue)
-        {
-            genre = await _context.Set<Genre>().FindAsync(movieCreateDto.GenreId.Value);
-
-            if (genre == null)
-            {
-                return BadRequest("Genre does not exist.");
-            }
-        }
-
-        Movie movie = new(
-            movieCreateDto.Title,
-            movieCreateDto.Year,
-            movieCreateDto.Duration,
-            genre
+        MovieDto? movieDto = await _movieService.CreateMovieAsync(
+            movieCreateDto,
+            cancellationToken
         );
 
-        _context.Movie.Add(movie);
-        await _context.SaveChangesAsync();
-
-        MovieDto movieDto = new()
+        if (movieDto is null)
         {
-            Id = movie.Id,
-            Title = movie.Title,
-            Year = movie.Year,
-            Duration = movie.Duration,
-            GenreId = movie.GenreId,
-            GenreName = movie.Genre?.Name
-        };
+            return BadRequest("Genre does not exist.");
+        }
 
-        return CreatedAtAction(nameof(GetMovie), new { id = movie.Id }, movieDto);
+        return CreatedAtAction(
+            nameof(GetMovie),
+            new { id = movieDto.Id },
+            movieDto
+        );
     }
 
     // DELETE: api/Movie/5
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> DeleteMovie([FromRoute] System.Guid id)
+    public async Task<IActionResult> DeleteMovie([FromRoute] Guid id)
     {
-        var movie = await _context.Movie.FindAsync(id);
-        if (movie == null)
+        bool isDeleted = await _movieService.DeleteMovieAsync(id);
+
+        if (!isDeleted)
         {
             return NotFound();
         }
 
-        _context.Movie.Remove(movie);
-        await _context.SaveChangesAsync();
-
         return NoContent();
-    }
-
-    private bool MovieExists(System.Guid? id)
-    {
-        return _context.Movie.Any(e => e.Id == id);
     }
 }
 
