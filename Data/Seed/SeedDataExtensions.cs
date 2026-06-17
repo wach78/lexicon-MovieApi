@@ -1,7 +1,7 @@
 using Microsoft.EntityFrameworkCore;
 using MovieApi.Models;
 
-namespace MovieApi.Extensions;
+namespace MovieApi.Data.Seed;
 
 public static class SeedDataExtensions
 {
