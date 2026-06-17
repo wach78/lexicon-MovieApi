@@ -21,7 +21,7 @@ public class ReviewsController : ControllerBase
     [HttpGet]
     public async Task<ActionResult<IEnumerable<ReviewDto>>> GetReview()
     {
-        List<ReviewDto> reviews = await _context.reviews
+        List<ReviewDto> reviews = await _context.Reviews
             .AsNoTracking()
             .Select(review => new ReviewDto
             {
@@ -48,7 +48,7 @@ public class ReviewsController : ControllerBase
             return NotFound();
         }
 
-        List<ReviewDto> reviews = await _context.reviews
+        List<ReviewDto> reviews = await _context.Reviews
             .AsNoTracking()
             .Where(review => review.MovieId == movieId)
             .Select(review => new ReviewDto
@@ -101,13 +101,13 @@ public class ReviewsController : ControllerBase
     [HttpDelete("{id:guid}")]
     public async Task<IActionResult> DeleteMovie([FromRoute] System.Guid id)
     {
-        var review = await _context.reviews.FindAsync(id);
+        var review = await _context.Reviews.FindAsync(id);
         if (review == null)
         {
             return NotFound();
         }
 
-        _context.reviews.Remove(review);
+        _context.Reviews.Remove(review);
         await _context.SaveChangesAsync();
 
         return NoContent();
