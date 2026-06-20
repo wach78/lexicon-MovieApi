@@ -26,6 +26,13 @@
   <ItemGroup>
       <Folder Include="Data\Seed\" />     
   </ItemGroup>
+
+    <ItemGroup>
+        <Compile Remove="MovieApi.Tests/**/*.cs" />
+        <Content Remove="MovieApi.Tests/**/*" />
+        <EmbeddedResource Remove="MovieApi.Tests/**/*" />
+        <None Remove="MovieApi.Tests/**/*" />
+    </ItemGroup>
     
 
 </Project>

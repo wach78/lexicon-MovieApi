@@ -5,9 +5,10 @@ using MovieApi.DTOs.Actor;
 using MovieApi.DTOs.Movie;
 using MovieApi.DTOs.Review;
 using MovieApi.Emuns;
-using MovieApi.Emuns;
 using MovieApi.Interfaces.Service;
 using MovieApi.Models;
+
+namespace MovieApi.Controllers;
 
 [Route("api/[controller]")]
 [ApiController]
@@ -115,9 +116,9 @@ public class MoviesController : ControllerBase
 
     // DELETE: api/Movie/5
     [HttpDelete("{id:guid}")]
-    public async Task<IActionResult> DeleteMovie([FromRoute] Guid id)
+    public async Task<IActionResult> DeleteMovie([FromRoute] Guid id, CancellationToken cancellationToken)
     {
-        bool isDeleted = await _movieService.DeleteMovieAsync(id);
+        bool isDeleted = await _movieService.DeleteMovieAsync(id, cancellationToken);
 
         if (!isDeleted)
         {
