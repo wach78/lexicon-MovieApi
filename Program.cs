@@ -17,6 +17,7 @@ public class Program
 
         builder.Services.AddScoped<IMovieApiContext>(serviceProvider => serviceProvider.GetRequiredService<MovieApiContext>());
         builder.Services.AddScoped<IMovieService, MovieService>();
+        builder.Services.AddScoped<IReviewService, ReviewService>();
 
         // Add services to the container.
 
