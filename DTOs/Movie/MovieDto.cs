@@ -5,7 +5,6 @@ namespace MovieApi.DTOs.Movie;
 
 public class MovieDto
 {
-
     public Guid Id { get; init; }
 
     public string Title { get; init; } = string.Empty;
