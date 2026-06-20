@@ -7,10 +7,9 @@ public interface IReviewService
         CancellationToken cancellationToken = default
     );
 
-    Task<IReadOnlyList<ReviewDto>> GetReviewsByMovieIdAsync(
-        Guid movieId,
-        CancellationToken cancellationToken = default
-    );
+    Task<IReadOnlyList<ReviewDto>?> GetReviewsByMovieIdAsync(
+      Guid movieId,
+      CancellationToken cancellationToken = default);
 
     Task<bool> MovieExistsAsync(
         Guid movieId,
