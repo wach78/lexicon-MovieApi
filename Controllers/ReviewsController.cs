@@ -3,6 +3,7 @@ using Microsoft.AspNetCore.Mvc;
 using Microsoft.EntityFrameworkCore;
 using MovieApi.DTOs.Actor;
 using MovieApi.DTOs.Review;
+using MovieApi.Interfaces.Service;
 using MovieApi.Models;
 
 namespace MovieApi.Controllers;
@@ -12,9 +13,11 @@ namespace MovieApi.Controllers;
 public class ReviewsController : ControllerBase
 {
     private readonly MovieApiContext _context;
-    public ReviewsController(MovieApiContext context)
+    private readonly IReviewService _reviewService;
+    public ReviewsController(MovieApiContext context, IReviewService reviewService)
     {
         _context = context;
+        _reviewService = reviewService;
     }
 
     // GET: api/Reviws
@@ -37,28 +40,14 @@ public class ReviewsController : ControllerBase
 
     //GET /api/movies/{movieId}/reviews
     [HttpGet("/api/movies/{movieId:guid}/reviews")]
-    public async Task<ActionResult<IEnumerable<ReviewDto>>> GetMovieReviws([FromRoute] Guid movieId)
+    public async Task<ActionResult<IReadOnlyList<ReviewDto>>> GetMovieReviews([FromRoute] Guid movieId, CancellationToken cancellationToken)
     {
-        Movie? movie = await _context.Movie
-        .AsNoTracking()
-        .FirstOrDefaultAsync(movie => movie.Id == movieId);
+        IReadOnlyList<ReviewDto>? reviews = await _reviewService.GetReviewsByMovieIdAsync(movieId, cancellationToken);
 
-        if (movie == null)
+        if (reviews is null)
         {
             return NotFound();
         }
-
-        List<ReviewDto> reviews = await _context.Reviews
-            .AsNoTracking()
-            .Where(review => review.MovieId == movieId)
-            .Select(review => new ReviewDto
-            {
-                Id = review.Id,
-                ReviewerName = review.ReviewerName,
-                Comment = review.Comment,
-                Rating = review.Rating
-            })
-            .ToListAsync();
 
         return Ok(reviews);
     }
