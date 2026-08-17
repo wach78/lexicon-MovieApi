@@ -8,6 +8,7 @@ public interface IMovieService
         string? genre,
         int? year,
         string? actor,
+        string? title,
         CancellationToken cancellationToken = default
     );
 

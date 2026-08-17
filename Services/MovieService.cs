@@ -144,7 +144,12 @@ public class MovieService : IMovieService
         return movie;
     }
 
-    public async Task<IReadOnlyList<MovieDto>> GetMoviesAsync(string? genre, int? year, string? actor, CancellationToken cancellationToken)
+    public async Task<IReadOnlyList<MovieDto>> GetMoviesAsync(
+        string? genre,
+        int? year,
+        string? actor,
+        string? search,
+        CancellationToken cancellationToken)
     {
         IQueryable<Movie> query = _context.Movie.AsNoTracking();
 
@@ -169,6 +174,23 @@ public class MovieService : IMovieService
             query = query.Where(movie =>
                 movie.Actors.Any(movieActor =>
                     movieActor.Name == trimmedActor));
+        }
+
+        if (!string.IsNullOrWhiteSpace(search))
+        {
+            string trimmedSearch = search.Trim();
+            bool isNumber = int.TryParse(trimmedSearch, out int number);
+
+            query = query.Where(movie =>
+                movie.Title.Contains(trimmedSearch) ||
+                (movie.Genre != null &&
+                 movie.Genre.Name.Contains(trimmedSearch)) ||
+                movie.Actors.Any(actor =>
+                    actor.Name.Contains(trimmedSearch)) ||
+                (isNumber &&
+                    (movie.Year == number ||
+                     movie.Duration == number))
+            );
         }
 
         return await query

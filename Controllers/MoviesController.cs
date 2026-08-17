@@ -26,6 +26,7 @@ public class MoviesController : ControllerBase
         [FromQuery] string? genre,
         [FromQuery] int? year,
         [FromQuery] string? actor,
+        [FromQuery] string? search,
         CancellationToken cancellationToken
         )
     {
@@ -33,6 +34,7 @@ public class MoviesController : ControllerBase
         genre,
         year,
         actor,
+        search,
         cancellationToken);
 
         return Ok(movies);
