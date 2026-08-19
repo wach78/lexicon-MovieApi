@@ -36,7 +36,6 @@ public class Program
             options.Cookie.SameSite = SameSiteMode.Strict;
         });
 
-
         // Learn more about configuring OpenAPI at https://aka.ms/aspnet/openapi
         builder.Services.AddOpenApi();
 
@@ -133,7 +132,6 @@ public class Program
         app.UseAntiforgery();
 
         app.MapControllers();
-       
 
         app.Run();
     }
