@@ -75,6 +75,16 @@ public class Program
                     ValidateLifetime = true,
                     ClockSkew = TimeSpan.Zero
                 };
+
+                options.Events = new JwtBearerEvents
+                {
+                    OnMessageReceived = context =>
+                    {
+                        context.Token = context.Request.Cookies["accessToken"];
+
+                        return Task.CompletedTask;
+                    }
+                };
             });
 
         builder.Services.AddAuthorization();
@@ -85,8 +95,8 @@ public class Program
             {
                 policy
                     .WithOrigins(
-                        "http://localhost:5173",
-                        "http://localhost:5174")
+                        "https://localhost:5173",
+                        "https://localhost:5174")
                     .AllowAnyHeader()
                     .AllowAnyMethod()
                     .AllowCredentials();

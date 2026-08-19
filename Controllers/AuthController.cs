@@ -3,10 +3,10 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
 using MovieApi.DTOs.Auth;
-using Microsoft.AspNetCore.RateLimiting;
 
 namespace MovieApi.Controllers;
 
@@ -14,6 +14,7 @@ namespace MovieApi.Controllers;
 [ApiController]
 public class AuthController : ControllerBase
 {
+    private const string AccessTokenCookieName = "accessToken";
     private const string RefreshTokenCookieName = "refreshToken";
 
     private readonly IConfiguration _configuration;
@@ -28,7 +29,6 @@ public class AuthController : ControllerBase
         _configuration = configuration;
     }
 
-    [EnableRateLimiting("LoginLimit")]
     [HttpPost("login")]
     public IActionResult Login([FromBody] LoginDto request)
     {
@@ -48,44 +48,40 @@ public class AuthController : ControllerBase
             )
         );
 
+        SetAccessTokenCookie(accessToken);
         SetRefreshTokenCookie(refreshToken);
 
-        return Ok(new TokenDto
-        {
-            AccessToken = accessToken
-        });
+        return NoContent();
     }
 
     [HttpPost("refresh")]
     public IActionResult Refresh()
     {
-        string? currentRefreshToken =
-            Request.Cookies[RefreshTokenCookieName];
+        string? currentRefreshToken = Request.Cookies[RefreshTokenCookieName];
 
         if (string.IsNullOrWhiteSpace(currentRefreshToken))
         {
             return Unauthorized();
         }
 
-        if (!RefreshTokens.TryGetValue(currentRefreshToken,out var storedToken))
+        if (!RefreshTokens.TryGetValue(currentRefreshToken, out var storedToken))
         {
             return Unauthorized();
         }
 
         if (storedToken.ExpiresAt <= DateTime.UtcNow)
         {
-            RefreshTokens.TryRemove(currentRefreshToken,out _);
+            RefreshTokens.TryRemove(currentRefreshToken, out _);
 
-            DeleteRefreshTokenCookie();
+            DeleteAuthCookies();
 
             return Unauthorized();
         }
 
-        // Refresh token rotation:
-        // remove old token
-        RefreshTokens.TryRemove(currentRefreshToken,out _);
+        // Remove old refresh token
+        RefreshTokens.TryRemove(currentRefreshToken, out _);
 
-        // create new tokens
+        // Create new tokens
         string newAccessToken = GenerateAccessToken(storedToken.Username);
 
         string newRefreshToken = GenerateRefreshToken();
@@ -97,12 +93,10 @@ public class AuthController : ControllerBase
             )
         );
 
+        SetAccessTokenCookie(newAccessToken);
         SetRefreshTokenCookie(newRefreshToken);
 
-        return Ok(new TokenDto
-        {
-            AccessToken = newAccessToken
-        });
+        return NoContent();
     }
 
     [HttpPost("logout")]
@@ -115,7 +109,7 @@ public class AuthController : ControllerBase
             RefreshTokens.TryRemove(refreshToken, out _);
         }
 
-        DeleteRefreshTokenCookie();
+        DeleteAuthCookies();
 
         return NoContent();
     }
@@ -133,14 +127,9 @@ public class AuthController : ControllerBase
                 "JWT key is missing."
             );
 
-        SymmetricSecurityKey key = new(
-            Encoding.UTF8.GetBytes(secretKey)
-        );
+        SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(secretKey));
 
-        SigningCredentials credentials = new(
-            key,
-            SecurityAlgorithms.HmacSha256
-        );
+        SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
 
         SecurityTokenDescriptor tokenDescriptor = new()
         {
@@ -155,7 +144,8 @@ public class AuthController : ControllerBase
 
         JwtSecurityTokenHandler tokenHandler = new();
 
-        SecurityToken token = tokenHandler.CreateToken(tokenDescriptor);
+        SecurityToken token =
+            tokenHandler.CreateToken(tokenDescriptor);
 
         return tokenHandler.WriteToken(token);
     }
@@ -167,6 +157,24 @@ public class AuthController : ControllerBase
         return Convert.ToBase64String(randomBytes);
     }
 
+    private void SetAccessTokenCookie(string accessToken)
+    {
+        Response.Cookies.Append(
+            AccessTokenCookieName,
+            accessToken,
+            new CookieOptions
+            {
+                HttpOnly = true,
+                Secure = true,
+                SameSite = SameSiteMode.Strict,
+                Expires = DateTimeOffset.UtcNow.AddMinutes(
+                    JwtConstants.AccessTokenExpirationMinutes
+                ),
+                Path = "/"
+            }
+        );
+    }
+
     private void SetRefreshTokenCookie(string refreshToken)
     {
         Response.Cookies.Append(
@@ -176,7 +184,7 @@ public class AuthController : ControllerBase
             {
                 HttpOnly = true,
                 Secure = true,
-                SameSite = SameSiteMode.None,
+                SameSite = SameSiteMode.Strict,
                 Expires = DateTimeOffset.UtcNow.AddDays(
                     JwtConstants.RefreshTokenExpirationDays
                 ),
@@ -185,8 +193,18 @@ public class AuthController : ControllerBase
         );
     }
 
-    private void DeleteRefreshTokenCookie()
+    private void DeleteAuthCookies()
     {
+        Response.Cookies.Delete(
+            AccessTokenCookieName,
+            new CookieOptions
+            {
+                Secure = true,
+                SameSite = SameSiteMode.None,
+                Path = "/"
+            }
+        );
+
         Response.Cookies.Delete(
             RefreshTokenCookieName,
             new CookieOptions
@@ -196,5 +214,15 @@ public class AuthController : ControllerBase
                 Path = "/api/auth"
             }
         );
+    }
+
+    [Authorize]
+    [HttpGet("me")]
+    public IActionResult Me()
+    {
+        return Ok(new
+        {
+            Username = User.Identity?.Name
+        });
     }
 }
