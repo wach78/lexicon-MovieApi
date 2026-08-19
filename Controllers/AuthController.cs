@@ -3,6 +3,7 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
 using Microsoft.IdentityModel.Tokens;
@@ -18,18 +19,21 @@ public class AuthController : ControllerBase
     private const string RefreshTokenCookieName = "refreshToken";
 
     private readonly IConfiguration _configuration;
+    private readonly IAntiforgery _antiforgery;
 
     private static readonly ConcurrentDictionary<
         string,
         (string Username, DateTime ExpiresAt)
     > RefreshTokens = new();
 
-    public AuthController(IConfiguration configuration)
+    public AuthController(IConfiguration configuration, IAntiforgery antiforgery)
     {
         _configuration = configuration;
+        _antiforgery = antiforgery;
     }
 
     [HttpPost("login")]
+    [ValidateAntiForgeryToken]
     public IActionResult Login([FromBody] LoginDto request)
     {
         // Hardcoded user for JWT exercise
@@ -55,6 +59,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("refresh")]
+    [ValidateAntiForgeryToken]
     public IActionResult Refresh()
     {
         string? currentRefreshToken = Request.Cookies[RefreshTokenCookieName];
@@ -100,6 +105,7 @@ public class AuthController : ControllerBase
     }
 
     [HttpPost("logout")]
+    [ValidateAntiForgeryToken]
     public IActionResult Logout()
     {
         string? refreshToken = Request.Cookies[RefreshTokenCookieName];
@@ -223,6 +229,17 @@ public class AuthController : ControllerBase
         return Ok(new
         {
             Username = User.Identity?.Name
+        });
+    }
+
+    [HttpGet("csrf")]
+    public IActionResult GetCsrfToken()
+    {
+        AntiforgeryTokenSet tokens = _antiforgery.GetAndStoreTokens(HttpContext);
+
+        return Ok(new
+        {
+            CsrfToken = tokens.RequestToken
         });
     }
 }
