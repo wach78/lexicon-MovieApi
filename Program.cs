@@ -15,7 +15,7 @@ namespace MovieApi;
 
 public class Program
 {
-    public static void Main(string[] args)
+    public static async Task Main(string[] args)
     {
         var builder = WebApplication.CreateBuilder(args);
         var connectionString = builder.Configuration.GetConnectionString("MovieApiContext") ?? throw new InvalidOperationException("Connection string 'MovieApiContext' not found.");
@@ -130,7 +130,7 @@ public class Program
 
         var app = builder.Build();
 
-        app.SeedIdentityAsync();
+        await app.SeedIdentityAsync();
         app.SeedData();
 
         // Configure the HTTP request pipeline.
