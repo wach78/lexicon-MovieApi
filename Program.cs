@@ -1,13 +1,16 @@
 using System.Text;
 using System.Threading.RateLimiting;
 using Microsoft.AspNetCore.Authentication.JwtBearer;
+using Microsoft.AspNetCore.Identity;
 using Microsoft.EntityFrameworkCore;
 using Microsoft.IdentityModel.Tokens;
 using MovieApi.Data.Seed;
 using MovieApi.Interfaces.Data;
 using MovieApi.Interfaces.Service;
+using MovieApi.Models.Identity;
 using MovieApi.Services;
 using Scalar.AspNetCore;
+
 namespace MovieApi;
 
 public class Program
@@ -19,9 +22,21 @@ public class Program
 
         builder.Services.AddDbContext<MovieApiContext>(options => options.UseSqlServer(connectionString));
 
+        builder.Services
+            .AddIdentityCore<ApplicationUser>(options =>
+            {
+                options.User.RequireUniqueEmail = true;
+            })
+            .AddRoles<IdentityRole<Guid>>()
+            .AddEntityFrameworkStores<MovieApiContext>()
+            .AddDefaultTokenProviders();
+
         builder.Services.AddScoped<IMovieApiContext>(serviceProvider => serviceProvider.GetRequiredService<MovieApiContext>());
         builder.Services.AddScoped<IMovieService, MovieService>();
         builder.Services.AddScoped<IReviewService, ReviewService>();
+        builder.Services.AddScoped<IAuthService, AuthService>();
+        builder.Services.AddScoped<ITokenService, TokenService>();
+        builder.Services.AddScoped<IAuthCookieService, AuthCookieService>();
 
         // Add services to the container.
 
@@ -115,6 +130,7 @@ public class Program
 
         var app = builder.Build();
 
+        app.SeedIdentityAsync();
         app.SeedData();
 
         // Configure the HTTP request pipeline.
