@@ -3,11 +3,16 @@ using System.IdentityModel.Tokens.Jwt;
 using System.Security.Claims;
 using System.Security.Cryptography;
 using System.Text;
+using Azure.Core;
 using Microsoft.AspNetCore.Antiforgery;
 using Microsoft.AspNetCore.Authorization;
 using Microsoft.AspNetCore.Mvc;
+using Microsoft.AspNetCore.RateLimiting;
 using Microsoft.IdentityModel.Tokens;
 using MovieApi.DTOs.Auth;
+using MovieApi.Interfaces.Service;
+using MovieApi.Models.Identity;
+using MovieApi.Services;
 
 namespace MovieApi.Controllers;
 
@@ -20,86 +25,135 @@ public class AuthController : ControllerBase
 
     private readonly IConfiguration _configuration;
     private readonly IAntiforgery _antiforgery;
+    private readonly IAuthService _authService;
+    private readonly ITokenService _tokenService;
+    private readonly IAuthCookieService _authCookieService;
 
     private static readonly ConcurrentDictionary<
         string,
-        (string Username, DateTime ExpiresAt)
+        (Guid UserId, DateTime ExpiresAt)
     > RefreshTokens = new();
 
-    public AuthController(IConfiguration configuration, IAntiforgery antiforgery)
+    public AuthController(
+        IConfiguration configuration,
+        IAntiforgery antiforgery,
+        IAuthService authService,
+        ITokenService tokenService,
+        IAuthCookieService authCookieService)
     {
         _configuration = configuration;
         _antiforgery = antiforgery;
+        _authService = authService;
+        _tokenService = tokenService;
+        _authCookieService = authCookieService;
     }
 
     [HttpPost("login")]
     [ValidateAntiForgeryToken]
-    public IActionResult Login([FromBody] LoginDto request)
+    [EnableRateLimiting("LoginLimit")]
+    public async Task<IActionResult> Login(
+        [FromBody] LoginDto request)
     {
-        // Hardcoded user for JWT exercise
-        if (request.Username != "admin" || request.Password != "1234")
+        ApplicationUser? user =
+            await _authService.AuthenticateAsync(request);
+
+        if (user is null)
         {
             return Unauthorized();
         }
 
-        string accessToken = GenerateAccessToken(request.Username);
-        string refreshToken = GenerateRefreshToken();
+        IList<string> roles =
+            await _authService.GetRolesAsync(user);
+
+        string accessToken = _tokenService.GenerateAccessToken(user, roles);
+
+        string refreshToken = _tokenService.GenerateRefreshToken();
 
         RefreshTokens[refreshToken] = (
-            request.Username,
+            user.Id,
             DateTime.UtcNow.AddDays(
                 JwtConstants.RefreshTokenExpirationDays
             )
         );
 
-        SetAccessTokenCookie(accessToken);
-        SetRefreshTokenCookie(refreshToken);
+        _authCookieService.SetAccessTokenCookie(Response, accessToken);
+
+        _authCookieService.SetRefreshTokenCookie(Response, refreshToken);
 
         return NoContent();
     }
 
     [HttpPost("refresh")]
     [ValidateAntiForgeryToken]
-    public IActionResult Refresh()
+    public async Task<IActionResult> Refresh()
     {
-        string? currentRefreshToken = Request.Cookies[RefreshTokenCookieName];
+        string? currentRefreshToken =
+            Request.Cookies[RefreshTokenCookieName];
 
         if (string.IsNullOrWhiteSpace(currentRefreshToken))
         {
             return Unauthorized();
         }
 
-        if (!RefreshTokens.TryGetValue(currentRefreshToken, out var storedToken))
+        if (!RefreshTokens.TryGetValue(
+                currentRefreshToken,
+                out var storedToken))
         {
             return Unauthorized();
         }
 
         if (storedToken.ExpiresAt <= DateTime.UtcNow)
         {
-            RefreshTokens.TryRemove(currentRefreshToken, out _);
+            RefreshTokens.TryRemove(
+                currentRefreshToken,
+                out _
+            );
 
-            DeleteAuthCookies();
+            _authCookieService.DeleteAuthCookies(Response);
 
             return Unauthorized();
         }
 
-        // Remove old refresh token
-        RefreshTokens.TryRemove(currentRefreshToken, out _);
+        ApplicationUser? user =
+            await _authService.FindActiveUserByIdAsync(
+                storedToken.UserId
+            );
 
-        // Create new tokens
-        string newAccessToken = GenerateAccessToken(storedToken.Username);
+        if (user is null)
+        {
+            RefreshTokens.TryRemove(
+                currentRefreshToken,
+                out _
+            );
 
-        string newRefreshToken = GenerateRefreshToken();
+            _authCookieService.DeleteAuthCookies(Response);
+
+            return Unauthorized();
+        }
+
+        IList<string> roles =
+            await _authService.GetRolesAsync(user);
+
+        // Rotate refresh token
+        RefreshTokens.TryRemove(
+            currentRefreshToken,
+            out _
+        );
+
+        string newAccessToken = _tokenService.GenerateAccessToken(user, roles);
+
+        string newRefreshToken = _tokenService.GenerateRefreshToken();
 
         RefreshTokens[newRefreshToken] = (
-            storedToken.Username,
+            user.Id,
             DateTime.UtcNow.AddDays(
                 JwtConstants.RefreshTokenExpirationDays
             )
         );
 
-        SetAccessTokenCookie(newAccessToken);
-        SetRefreshTokenCookie(newRefreshToken);
+        _authCookieService.SetAccessTokenCookie(Response, newAccessToken);
+
+        _authCookieService.SetRefreshTokenCookie(Response, newRefreshToken);
 
         return NoContent();
     }
@@ -108,118 +162,20 @@ public class AuthController : ControllerBase
     [ValidateAntiForgeryToken]
     public IActionResult Logout()
     {
-        string? refreshToken = Request.Cookies[RefreshTokenCookieName];
+        string? refreshToken =
+            Request.Cookies[RefreshTokenCookieName];
 
         if (!string.IsNullOrWhiteSpace(refreshToken))
         {
-            RefreshTokens.TryRemove(refreshToken, out _);
+            RefreshTokens.TryRemove(
+                refreshToken,
+                out _
+            );
         }
 
-        DeleteAuthCookies();
+        _authCookieService.DeleteAuthCookies(Response);
 
         return NoContent();
-    }
-
-    private string GenerateAccessToken(string username)
-    {
-        Claim[] claims =
-        [
-            new Claim(ClaimTypes.Name, username),
-            new Claim(ClaimTypes.Role, "Admin")
-        ];
-
-        string secretKey = _configuration["Jwt:Key"]
-            ?? throw new InvalidOperationException(
-                "JWT key is missing."
-            );
-
-        SymmetricSecurityKey key = new(Encoding.UTF8.GetBytes(secretKey));
-
-        SigningCredentials credentials = new(key, SecurityAlgorithms.HmacSha256);
-
-        SecurityTokenDescriptor tokenDescriptor = new()
-        {
-            Subject = new ClaimsIdentity(claims),
-            Expires = DateTime.UtcNow.AddMinutes(
-                JwtConstants.AccessTokenExpirationMinutes
-            ),
-            Issuer = _configuration["Jwt:Issuer"],
-            Audience = _configuration["Jwt:Audience"],
-            SigningCredentials = credentials
-        };
-
-        JwtSecurityTokenHandler tokenHandler = new();
-
-        SecurityToken token =
-            tokenHandler.CreateToken(tokenDescriptor);
-
-        return tokenHandler.WriteToken(token);
-    }
-
-    private static string GenerateRefreshToken()
-    {
-        byte[] randomBytes = RandomNumberGenerator.GetBytes(64);
-
-        return Convert.ToBase64String(randomBytes);
-    }
-
-    private void SetAccessTokenCookie(string accessToken)
-    {
-        Response.Cookies.Append(
-            AccessTokenCookieName,
-            accessToken,
-            new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTimeOffset.UtcNow.AddMinutes(
-                    JwtConstants.AccessTokenExpirationMinutes
-                ),
-                Path = "/"
-            }
-        );
-    }
-
-    private void SetRefreshTokenCookie(string refreshToken)
-    {
-        Response.Cookies.Append(
-            RefreshTokenCookieName,
-            refreshToken,
-            new CookieOptions
-            {
-                HttpOnly = true,
-                Secure = true,
-                SameSite = SameSiteMode.Strict,
-                Expires = DateTimeOffset.UtcNow.AddDays(
-                    JwtConstants.RefreshTokenExpirationDays
-                ),
-                Path = "/api/auth"
-            }
-        );
-    }
-
-    private void DeleteAuthCookies()
-    {
-        Response.Cookies.Delete(
-            AccessTokenCookieName,
-            new CookieOptions
-            {
-                Secure = true,
-                SameSite = SameSiteMode.None,
-                Path = "/"
-            }
-        );
-
-        Response.Cookies.Delete(
-            RefreshTokenCookieName,
-            new CookieOptions
-            {
-                Secure = true,
-                SameSite = SameSiteMode.None,
-                Path = "/api/auth"
-            }
-        );
     }
 
     [Authorize]
@@ -228,14 +184,27 @@ public class AuthController : ControllerBase
     {
         return Ok(new
         {
-            Username = User.Identity?.Name
+            UserId = User.FindFirstValue(
+                ClaimTypes.NameIdentifier
+            ),
+            Email = User.FindFirstValue(
+                ClaimTypes.Email
+            ),
+            Roles = User.FindAll(
+                    ClaimTypes.Role
+                )
+                .Select(claim => claim.Value)
+                .ToArray()
         });
     }
 
     [HttpGet("csrf")]
     public IActionResult GetCsrfToken()
     {
-        AntiforgeryTokenSet tokens = _antiforgery.GetAndStoreTokens(HttpContext);
+        AntiforgeryTokenSet tokens =
+            _antiforgery.GetAndStoreTokens(
+                HttpContext
+            );
 
         return Ok(new
         {
